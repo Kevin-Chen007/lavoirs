@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 .vercel/
+.tools/
+test-results/
+playwright-report/

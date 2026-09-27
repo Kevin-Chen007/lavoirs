@@ -1,4 +1,4 @@
-import type { Profile } from './profile';
+import type { Profile } from './profile.js';
 
 export interface AuthSession { user: { id: string; email: string } }
 export interface AuthInput {

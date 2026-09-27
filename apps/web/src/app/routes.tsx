@@ -24,10 +24,10 @@ export function hasCompleteProfile(profile: Profile | null) {
   return !!(profile?.name.trim() && profile.location.trim() && profile.interests.length);
 }
 
-function RoomRoute({ group, onLeave, onEvents }: { group: MatchGroup | null; onLeave: () => void; onEvents: () => void }) {
+function RoomRoute({ group, profile, onLeave, onEvents }: { group: MatchGroup | null; profile: Profile | null; onLeave: () => void; onEvents: () => void }) {
   const { roomId } = useParams();
-  if (!group || roomId !== group.roomId) return <Navigate to="/queue" replace/>;
-  return <><RoomPage group={group} onLeave={onLeave}/><div className="route-actions"><button className="primary" onClick={onEvents}>Preview what comes next →</button><p className="field-hint">Demo shortcut to the follow-up page. The live session timer is not connected.</p></div></>;
+  if (!group || !profile || roomId !== group.roomId || !group.participants.some(p => p.id === profile.id)) return <Navigate to="/queue" replace/>;
+  return <><RoomPage group={group} user={profile} onLeave={onLeave}/><div className="route-actions"><button className="primary" onClick={onEvents}>Preview what comes next →</button><p className="field-hint">Demo shortcut to the follow-up page. The live session timer is not connected.</p></div></>;
 }
 
 export default function AppRoutes({ services, profile, group, setProfile, setGroup, account }: Props) {
@@ -55,7 +55,7 @@ export default function AppRoutes({ services, profile, group, setProfile, setGro
     <Route path="/signup" element={profile ? <Navigate to={home} replace/> : <LoginPage key="signup" signup onContinue={account.login} demo={services.auth.mode === 'demo'} requiresPassword={services.auth.requiresPassword}/>}/>
     <Route path="/profile" element={protect(profile && <ProfilePage profile={profile} onSave={draft => { void account.save(draft, saved => { setProfile(saved); navigate('/queue'); }); }}/>)}/>
     <Route path="/queue" element={protect(profile && <MatchingPage profile={profile} onEdit={() => navigate('/profile')} onJoin={match => { setGroup(match); navigate(`/rooms/${encodeURIComponent(match.roomId)}`); }}/>, true)}/>
-    <Route path="/rooms/:roomId" element={protect(<RoomRoute group={group} onLeave={leaveRoom} onEvents={() => navigate('/events')}/>, true)}/>
+    <Route path="/rooms/:roomId" element={protect(<RoomRoute group={group} profile={profile} onLeave={leaveRoom} onEvents={() => navigate('/events')}/>, true)}/>
     <Route path="/events" element={protect(group ? <EventRecommendations onBackToQueue={leaveRoom}/> : <Navigate to="/queue" replace/>, true)}/>
     <Route path="*" element={<section className="page-content"><div className="eyebrow">WRONG WARP PIPE</div><h1>This page wandered off.</h1><p className="muted">Let’s get you back to your people.</p><Link className="primary" to={home}>Back to the lobby</Link></section>}/>
   </Routes>;

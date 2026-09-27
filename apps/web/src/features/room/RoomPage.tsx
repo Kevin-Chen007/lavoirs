@@ -1,2 +1,13 @@
-import type { MatchGroup } from '../../../../../packages/shared/src/matching';
-export default function RoomPage({ group, onLeave }: { group: MatchGroup; onLeave: () => void }) { return <section className="page-content"><div className="eyebrow">ROOM PREVIEW · DEMO</div><h1>You’ve found <em>your group.</em></h1><p className="muted">This is the integration handoff for LiveKit. Video, microphones, and the session timer are not connected yet.</p><div className="room-grid">{group.participants.map((p, i) => <div className={`surface room-tile color-${i}`} key={p.id}><span className="room-initial">{p.name.slice(0, 1).toUpperCase()}</span><strong>{p.name}</strong><small>{i ? 'Seeded participant' : 'You'} · Camera off</small></div>)}</div><div className="surface room-prompt"><div className="eyebrow">A LITTLE ICEBREAKER</div><h2>What got you into {group.participants[0].interests[0]?.toLowerCase()}, and what would you recommend to someone new?</h2></div><button className="primary" onClick={onLeave}>Leave room</button></section>; }
+import type { MatchGroup, GroupMember } from '../../../../../packages/shared/src/matching';
+import { LiveKitRoom } from './LiveKitRoom';
+
+export default function RoomPage({ group, user, onLeave }: { group: MatchGroup; user: GroupMember; onLeave: () => void }) {
+  return <section className="page-content">
+    <div className="eyebrow">YOUR ROOM</div>
+    <h1>You’ve found <em>your group.</em></h1>
+    <p className="muted">Your conversation starts with a shared interest. Join when you’re ready.</p>
+    <LiveKitRoom groupId={group.id} user={user}/>
+    <div className="surface room-prompt"><div className="eyebrow">A LITTLE ICEBREAKER</div><h2>What got you into {user.interests[0]?.toLowerCase() || 'your interests'}, and what would you recommend to someone new?</h2></div>
+    <button className="primary" onClick={onLeave}>Back to the queue</button>
+  </section>;
+}
