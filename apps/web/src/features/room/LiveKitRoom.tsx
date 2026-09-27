@@ -14,9 +14,29 @@ interface Props {
     groupId: string;
     user: GroupMember;
     requestToken?: () => Promise<LiveKitTokenResponse>;
+    showMoviePrompts?: boolean;
 }
 
-export function LiveKitRoom({ groupId, user, requestToken }: Props) {
+const MOVIE_PROMPTS = [
+    'Which movie would you love to watch again for the first time, and why?',
+    'What film changed how you think about a genre?',
+    'If your life had an opening scene, what song would play?',
+    'Which fictional world would you visit for one day?',
+    'What movie do you defend even when your friends disagree?',
+    'Which movie character do you relate to more than you expected?',
+];
+
+function chooseMoviePrompt(participants: Participant[]) {
+    const identities = participants.map(participant => participant.identity).sort();
+    let hash = 2166136261;
+    for (const character of identities.join('|')) {
+        hash ^= character.charCodeAt(0);
+        hash = Math.imul(hash, 16777619);
+    }
+    return MOVIE_PROMPTS[(hash >>> 0) % MOVIE_PROMPTS.length];
+}
+
+export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = false }: Props) {
     const [room, setRoom] = useState<LiveKitClientRoom | null>(null);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [connecting, setConnecting] = useState(false);
@@ -26,6 +46,7 @@ export function LiveKitRoom({ groupId, user, requestToken }: Props) {
     const [cameraOn, setCameraOn] = useState(false);
     const roomRef = useRef<LiveKitClientRoom | null>(null);
     const attempt = useRef(0);
+    const moviePrompt = showMoviePrompts && participants.length <= 4 ? chooseMoviePrompt(participants) : null;
 
     const refreshParticipants = useCallback((activeRoom: LiveKitClientRoom) => {
         setParticipants([activeRoom.localParticipant, ...activeRoom.remoteParticipants.values()]);
@@ -156,6 +177,10 @@ export function LiveKitRoom({ groupId, user, requestToken }: Props) {
                     <div className="video-grid" aria-label="Room participants">
                         {participants.map((participant) => <ParticipantTile key={participant.identity} participant={participant} local={participant instanceof LocalParticipant} />)}
                         {participants.length < 4 ? <div className="waiting-tile"><span>✳</span><p>Waiting for more people to join…</p></div> : null}
+                        {moviePrompt ? <div className="movie-prompt-overlay" role="status" aria-live="polite">
+                            <span className="eyebrow">MOVIE FAN ICEBREAKER</span>
+                            <p>{moviePrompt}</p>
+                        </div> : null}
                     </div>
                     <div className="call-controls">
                         <button className={`control-button ${micOn ? 'enabled' : ''}`} onClick={() => void toggleMicrophone()}><span>{micOn ? '🎙' : '🔇'}</span>{micOn ? 'Mute mic' : 'Turn mic on'}</button>
