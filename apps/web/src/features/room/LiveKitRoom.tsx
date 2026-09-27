@@ -25,6 +25,7 @@ const MOVIE_PROMPTS = [
     'What movie do you defend even when your friends disagree?',
     'Which movie character do you relate to more than you expected?',
 ];
+const MOVIE_PROMPT_TOPIC = 'movie-prompt';
 
 function chooseMoviePrompt(participants: Participant[]) {
     const identities = participants.map(participant => participant.identity).sort();
@@ -44,9 +45,14 @@ export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = fa
     const [error, setError] = useState('');
     const [micOn, setMicOn] = useState(false);
     const [cameraOn, setCameraOn] = useState(false);
+    const [moviePromptOffset, setMoviePromptOffset] = useState(0);
     const roomRef = useRef<LiveKitClientRoom | null>(null);
     const attempt = useRef(0);
-    const moviePrompt = showMoviePrompts && participants.length <= 4 ? chooseMoviePrompt(participants) : null;
+    const moviePromptOffsetRef = useRef(0);
+    const firstMoviePrompt = showMoviePrompts && participants.length <= 4 ? chooseMoviePrompt(participants) : null;
+    const moviePrompt = firstMoviePrompt
+        ? MOVIE_PROMPTS[(MOVIE_PROMPTS.indexOf(firstMoviePrompt) + moviePromptOffset) % MOVIE_PROMPTS.length]
+        : null;
 
     const refreshParticipants = useCallback((activeRoom: LiveKitClientRoom) => {
         setParticipants([activeRoom.localParticipant, ...activeRoom.remoteParticipants.values()]);
@@ -62,6 +68,8 @@ export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = fa
         const currentAttempt = ++attempt.current;
         setConnecting(true);
         setError('');
+        moviePromptOffsetRef.current = 0;
+        setMoviePromptOffset(0);
         setMessage('Checking group access and requesting a room token…');
         let clientRoom: LiveKitClientRoom | null = null;
 
@@ -81,6 +89,19 @@ export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = fa
                 .on(RoomEvent.LocalTrackUnpublished, refresh)
                 .on(RoomEvent.TrackMuted, refresh)
                 .on(RoomEvent.TrackUnmuted, refresh)
+                .on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+                    if (topic !== MOVIE_PROMPT_TOPIC) return;
+                    try {
+                        const data = JSON.parse(new TextDecoder().decode(payload)) as { type?: unknown; offset?: unknown };
+                        if (data.type !== 'skip' || !Number.isInteger(data.offset)) return;
+                        const offset = data.offset as number;
+                        if (offset < 0 || offset >= MOVIE_PROMPTS.length) return;
+                        moviePromptOffsetRef.current = offset;
+                        setMoviePromptOffset(offset);
+                    } catch {
+                        // Ignore malformed room data packets.
+                    }
+                })
                 .on(RoomEvent.Disconnected, () => {
                     setRoom(null);
                     setParticipants([]);
@@ -163,6 +184,19 @@ export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = fa
         }
     }
 
+    async function skipMoviePrompt() {
+        if (!room) return;
+        const offset = (moviePromptOffsetRef.current + 1) % MOVIE_PROMPTS.length;
+        moviePromptOffsetRef.current = offset;
+        setMoviePromptOffset(offset);
+        try {
+            const payload = new TextEncoder().encode(JSON.stringify({ type: 'skip', offset }));
+            await room.localParticipant.publishData(payload, { reliable: true, topic: MOVIE_PROMPT_TOPIC });
+        } catch (publishError) {
+            setError(publishError instanceof Error ? publishError.message : 'Could not send the prompt skip to the room.');
+        }
+    }
+
     return (
         <section className="call-card surface">
             <div className="call-heading">
@@ -180,6 +214,7 @@ export function LiveKitRoom({ groupId, user, requestToken, showMoviePrompts = fa
                         {moviePrompt ? <div className="movie-prompt-overlay" role="status" aria-live="polite">
                             <span className="eyebrow">MOVIE FAN ICEBREAKER</span>
                             <p>{moviePrompt}</p>
+                            <button type="button" className="control-button" onClick={() => void skipMoviePrompt()}>Skip prompt</button>
                         </div> : null}
                     </div>
                     <div className="call-controls">
