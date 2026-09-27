@@ -1,4 +1,5 @@
-import { AccessToken } from 'livekit-server-sdk';
+import { randomUUID } from 'node:crypto';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { readDevSession } from '../../server/dev-sessions.js';
 import type { LiveKitTokenRequest, LiveKitTokenResponse } from '../../packages/shared/src/livekit.js';
 
@@ -22,10 +23,82 @@ function readBody(body: unknown): LiveKitTokenRequest | null {
     : null;
 }
 
+function readDemoBody(body: unknown): { displayName: string; inviteCode: string } | null {
+  if (!body || typeof body !== 'object') return null;
+  const value = body as { displayName?: unknown; inviteCode?: unknown };
+  if (typeof value.displayName !== 'string' || typeof value.inviteCode !== 'string') return null;
+  const displayName = value.displayName.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (!displayName || displayName.length > 40 || value.inviteCode.length > 128) return null;
+  return { displayName, inviteCode: value.inviteCode };
+}
+
+function isDemoBody(body: unknown): boolean {
+  return !!body && typeof body === 'object' && ('displayName' in body || 'inviteCode' in body);
+}
+
+async function issueDemoRoomToken(
+  displayName: string,
+  inviteCode: string,
+  res: TokenResponseWriter,
+) {
+  const expectedCode = process.env.MVP_INVITE_CODE;
+  if (!expectedCode) return res.status(503).json({ error: 'The demo invite code is not configured on the server.' });
+  if (inviteCode !== expectedCode) return res.status(401).json({ error: 'That invite code is not valid.' });
+
+  const { LIVEKIT_URL: serverUrl, LIVEKIT_API_KEY: apiKey, LIVEKIT_API_SECRET: apiSecret } = process.env;
+  if (!serverUrl || !apiKey || !apiSecret) {
+    return res.status(503).json({ error: 'LiveKit Cloud credentials are not configured on the server.' });
+  }
+
+  try {
+    const roomName = 'lavoirs-demo-room';
+    const apiHost = serverUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
+    const roomService = new RoomServiceClient(apiHost, apiKey, apiSecret);
+    let rooms = await roomService.listRooms([roomName]);
+    if (!rooms.length) {
+      try {
+        await roomService.createRoom({ name: roomName, maxParticipants: 4, emptyTimeout: 60, departureTimeout: 20 });
+      } catch {
+        // Concurrent first joins can race to create the same room. Continue if
+        // the other request successfully created it.
+        rooms = await roomService.listRooms([roomName]);
+        if (!rooms.length) throw new Error('Could not create the demo room.');
+      }
+    }
+    if ((await roomService.listParticipants(roomName)).length >= 4) {
+      return res.status(409).json({ error: 'This demo room already has four people. Ask the host for another session.' });
+    }
+
+    const accessToken = new AccessToken(apiKey, apiSecret, {
+      identity: randomUUID(),
+      name: displayName,
+      ttl: '10m',
+    });
+    accessToken.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, canPublishData: false });
+    const response: LiveKitTokenResponse = {
+      serverUrl,
+      participantToken: await accessToken.toJwt(),
+      roomName,
+      participantName: displayName,
+    };
+    return res.status(200).json(response);
+  } catch {
+    return res.status(502).json({ error: 'Could not prepare the LiveKit demo room.' });
+  }
+}
+
 export default async function handler(req: TokenRequest, res: TokenResponseWriter) {
   res.setHeader?.('Cache-Control', 'no-store');
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Use POST to request room access.' });
+  }
+
+  // Minimal public-demo path: an invite code admits a participant to one
+  // shared room. Credentials stay server-side; Supabase auth is not required.
+  if (isDemoBody(req.body)) {
+    const demo = readDemoBody(req.body);
+    if (!demo) return res.status(400).json({ error: 'Enter a display name (up to 40 characters) and invite code.' });
+    return issueDemoRoomToken(demo.displayName, demo.inviteCode, res);
   }
 
   // Local sessions are enabled only on this computer in development.

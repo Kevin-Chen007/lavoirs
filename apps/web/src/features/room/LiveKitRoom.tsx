@@ -7,14 +7,16 @@ import {
     Track,
 } from 'livekit-client';
 import type { GroupMember } from '../../../../../packages/shared/src/matching.js';
+import type { LiveKitTokenResponse } from '../../../../../packages/shared/src/livekit.js';
 import { requestRoomToken } from '../../lib/livekit-client.js';
 
 interface Props {
     groupId: string;
     user: GroupMember;
+    requestToken?: () => Promise<LiveKitTokenResponse>;
 }
 
-export function LiveKitRoom({ groupId, user }: Props) {
+export function LiveKitRoom({ groupId, user, requestToken }: Props) {
     const [room, setRoom] = useState<LiveKitClientRoom | null>(null);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [connecting, setConnecting] = useState(false);
@@ -43,7 +45,7 @@ export function LiveKitRoom({ groupId, user }: Props) {
         let clientRoom: LiveKitClientRoom | null = null;
 
         try {
-            const payload = await requestRoomToken(groupId);
+            const payload = await (requestToken ? requestToken() : requestRoomToken(groupId));
             if (currentAttempt !== attempt.current) return;
 
             clientRoom = new LiveKitClientRoom({ adaptiveStream: false, dynacast: true });

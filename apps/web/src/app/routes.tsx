@@ -9,7 +9,7 @@ import ProfilePage from '../features/profile/ProfilePage';
 import MatchingPage from '../features/matching/MatchingPage';
 import RoomPage from '../features/room/RoomPage';
 import EventRecommendations from '../features/events/EventRecommendations';
-import HomePage from '../features/home/HomePage';
+import PublicDemoPage from '../features/room/PublicDemoPage';
 
 interface Props {
     services: AppServices;
@@ -36,7 +36,7 @@ export default function AppRoutes({ services, profile, group, setProfile, setGro
     const home = !profile ? '/login' : hasCompleteProfile(profile) ? '/queue' : '/profile';
 
     useEffect(() => {
-        const titles: Record<string, string> = { '/': 'Home', '/login': 'Log in', '/signup': 'Join the party', '/profile': 'Your profile', '/queue': 'Find your group', '/events': 'Meet again' };
+        const titles: Record<string, string> = { '/': 'Live demo room', '/login': 'Log in', '/signup': 'Join the party', '/profile': 'Your profile', '/queue': 'Find your group', '/events': 'Meet again' };
         document.title = `${titles[location.pathname] ?? (location.pathname.startsWith('/rooms/') ? 'Your room' : 'Lavoirs')} · Lavoirs`;
         window.scrollTo(0, 0);
         document.querySelector<HTMLElement>('main')?.focus({ preventScroll: true });
@@ -50,7 +50,7 @@ export default function AppRoutes({ services, profile, group, setProfile, setGro
     function leaveRoom() { setGroup(null); navigate('/queue', { replace: true }); }
 
     return <Routes>
-        <Route path="/" element={profile ? <HomePage nextPath={home} /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={<PublicDemoPage />} />
         <Route path="/login" element={profile ? <Navigate to={home} replace /> : <LoginPage key="login" onContinue={account.login} demo={services.auth.mode === 'demo'} requiresPassword={services.auth.requiresPassword} />} />
         <Route path="/signup" element={profile ? <Navigate to={home} replace /> : <LoginPage key="signup" signup onContinue={account.login} demo={services.auth.mode === 'demo'} requiresPassword={services.auth.requiresPassword} />} />
         <Route path="/profile" element={protect(profile && <ProfilePage profile={profile} onSave={draft => { void account.save(draft, saved => { setProfile(saved); navigate('/queue'); }); }} />)} />

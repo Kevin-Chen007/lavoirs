@@ -25,7 +25,8 @@ export default function App({ services = defaultServices }: { services?: AppServ
             <Link className="brand" to="/" aria-label="Lavoirs home"><span className="brand-mark"><AudioLines size={23} /></span>lavoirs<span className="brand-period">.</span></Link>
             <nav aria-label="Main navigation">
                 {profile ? <><span className="header-note">{step}</span><button className="text-button" disabled={account.busy} onClick={account.logout}>Sign out<ArrowUpRight size={15} /></button></>
-                    : <><span className="header-note">Online conversations. Offline possibilities.</span><a href="#how-it-works">How it works<ArrowUpRight size={15} /></a></>}
+                    : location.pathname === '/' ? <span className="header-note">Invite-only video meetup</span>
+                        : <><span className="header-note">Online conversations. Offline possibilities.</span><a href="#how-it-works">How it works<ArrowUpRight size={15} /></a></>}
             </nav>
         </header>
         <main tabIndex={-1}>
